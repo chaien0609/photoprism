@@ -22,6 +22,8 @@
 - `git describe` chạy trong container cần config `safe.directory`. Truyền qua env `GIT_CONFIG_COUNT=1 / GIT_CONFIG_KEY_0=safe.directory / GIT_CONFIG_VALUE_0=/go/src/github.com/photoprism/photoprism` — không sửa global git config trong container.
 - `photoprism/develop:resolute` đã có `ENTRYPOINT ["/init"]` + `CMD ["/scripts/cmd.sh", "tail", "-f", "/dev/null"]` → container tự sống, **không** set `command:`.
 - Trong chế độ dev phải override `PHOTOPRISM_INIT: ""` (develop image đã có TensorFlow, không cần cài lại mỗi lần start) và `PHOTOPRISM_INDEX_SCHEDULE: ""` (tránh auto-index 134k file khi đang thử nghiệm).
+- **BẮT BUỘC** đặt `PHOTOPRISM_STORAGE_PATH: "/photoprism/storage"` trong `compose.dev.yaml`. Image `photoprism/photoprism` đặt biến này trong ENV của image; image `photoprism/develop` **không** có, và `compose.yaml` cũng không đặt. Thiếu nó thì PhotoPrism fallback về default `<originals>/.photoprism/storage`, dẫn tới: không thấy sidecar thật (video/HEIC preview trả về SVG icon lỗi kèm **HTTP 200**, rất dễ tưởng là bình thường), bỏ qua thumbnail cache 134 GB, và ghi rác vào thư mục ảnh gốc. Đặt kèm `PHOTOPRISM_ORIGINALS_PATH`, `PHOTOPRISM_IMPORT_PATH`, và nhóm thumbnail (`THUMB_SIZE` 1920, `THUMB_SIZE_UNCACHED` 7680, `THUMB_UNCACHED` true, `JPEG_SIZE`/`PNG_SIZE` 7680) vì code default lệch với ENV của image prod (5120 / false).
+- Đừng dùng `docker compose run <service> photoprism config` để lấy config tham chiếu từ image prod: entrypoint `/init` xoá sạch biến `PHOTOPRISM_*` trước khi CMD chạy, nên kết quả là code default chứ không phải cấu hình thật. Muốn đọc ENV của image thì bypass entrypoint: `docker run --rm --entrypoint /bin/bash <image> -c 'echo $PHOTOPRISM_STORAGE_PATH'`.
 - Git identity repo-local đã set: `chaien0609 <cuongnh0609@gmail.com>`.
 
 ---
@@ -347,6 +349,19 @@ services:
     environment:
       ## Assets nằm trong source (frontend build output + TensorFlow model)
       PHOTOPRISM_ASSETS_PATH: "/go/src/github.com/photoprism/photoprism/assets"
+      ## BẮT BUỘC: image develop không có các biến này (image prod có trong ENV).
+      ## Thiếu -> fallback "<originals>/.photoprism/storage" -> mất sidecar + bỏ qua cache 134 GB.
+      PHOTOPRISM_STORAGE_PATH: "/photoprism/storage"
+      PHOTOPRISM_ORIGINALS_PATH: "/photoprism/originals"
+      PHOTOPRISM_IMPORT_PATH: "/photoprism/import"
+      ## Không set PHOTOPRISM_BACKUP_PATH: suy ra từ STORAGE_PATH thành
+      ## /photoprism/storage/backup — khớp thư mục đang có trên disk.
+      ## Khớp hành vi thumbnail với image prod (code default khác: 5120 / false)
+      PHOTOPRISM_THUMB_SIZE: 1920
+      PHOTOPRISM_THUMB_SIZE_UNCACHED: 7680
+      PHOTOPRISM_THUMB_UNCACHED: "true"
+      PHOTOPRISM_JPEG_SIZE: 7680
+      PHOTOPRISM_PNG_SIZE: 7680
       ## develop image đã có TensorFlow sẵn — để rỗng, không cài lại mỗi lần start
       PHOTOPRISM_INIT: ""
       ## Tắt auto-index khi đang thử nghiệm (134k file). Bật lại bằng cách xoá dòng này.
@@ -720,9 +735,27 @@ curl -s http://localhost:8098/api/v1/status
 
 Kỳ vọng: `HTTP 200`, body `{"status":"operational"}`.
 
+- [ ] **Step 7b: Kiểm chứng thumbnail trả JPEG thật, không phải icon lỗi**
+
+`internal/api/thumbnails.go:168` trả về **HTTP 200 kèm SVG icon lỗi** khi không resolve được file — nên chỉ xem status code sẽ không phát hiện được lỗi. Phải kiểm `content_type`:
+
+```bash
+TOK=$(docker exec photoprism-mariadb-1 mariadb -u root -pinsecure -N -B -e \
+  "SELECT preview_token FROM photoprism.auth_sessions WHERE preview_token<>'' ORDER BY created_at DESC LIMIT 1;")
+H=$(docker exec photoprism-mariadb-1 mariadb -u root -pinsecure -N -B -e \
+  "SELECT file_hash FROM photoprism.files WHERE file_name LIKE '%.mov.jpg' LIMIT 1;")
+curl -s -o /dev/null -w 'content_type: %{content_type}\n' "http://localhost:8098/api/v1/t/$H/$TOK/tile_500"
+```
+
+Kỳ vọng: `image/jpeg`. Nếu ra `image/svg+xml` → đường dẫn sidecar sai, kiểm lại `PHOTOPRISM_STORAGE_PATH`.
+
+Chọn file `.mov.jpg` vì preview video nằm trong sidecar — đúng chỗ vỡ khi storage path sai. Ảnh JPEG thường nằm trong originals nên vẫn render dù cấu hình sai, không phát hiện được gì.
+
 - [ ] **Step 8: Kiểm chứng UI thật trên browser**
 
-Mở `http://localhost:8098` trong browser, đăng nhập bằng `admin` / `insecure`, rồi xác nhận **bằng mắt**:
+Mở `http://localhost:8098` trong browser, đăng nhập bằng tài khoản admin của bạn, rồi xác nhận **bằng mắt**:
+
+Lưu ý: `PHOTOPRISM_ADMIN_PASSWORD` trong compose chỉ áp dụng ở lần setup đầu tiên. Nếu password đã đổi sau đó thì giá trị trong compose không còn đúng.
 - Thư viện hiện ảnh, thumbnail render đúng (không phải ô xám)
 - Mở một ảnh ở chế độ xem lớn được
 - Trang Albums hiện đúng số album như Step 5
