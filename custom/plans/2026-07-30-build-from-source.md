@@ -847,34 +847,49 @@ Kỳ vọng: build thành công, in kích thước binary. Ghi lại thời gian
 
 - [ ] **Step 4: Restart app và kiểm chứng log mới xuất hiện**
 
-Ở terminal đang chạy `./dev.sh run`: Ctrl-C, rồi chạy lại `./dev.sh run`.
+```bash
+cd /Volumes/BKM/photoprism
+./dev.sh stop-app     # BẮT BUỘC trước khi run lại
+./dev.sh run
+```
+
+Phải `stop-app` vì Ctrl-C (hoặc kill) ở host chỉ giết client `docker compose exec`; tiến trình app **trong container** vẫn giữ cổng 2342, nên lần `run` sau sẽ thất bại với `server: listen tcp 0.0.0.0:2342: bind: address already in use` rồi tự shutdown — và cổng vẫn do binary **cũ** phục vụ, rất dễ tưởng là đã restart thành công.
+
+Kiểm tiến trình khi cần: `docker exec photoprism-photoprism-1 bash -c 'ps -eo pid,args | grep [p]hotoprism'` (đừng dùng `grep -c`, nó đếm cả command line của chính lệnh đang chạy).
 
 Kỳ vọng: trong log khởi động có dòng `custom: running build from local source (<version>)`.
 Đây là bằng chứng thay đổi Go đã vào binary đang chạy.
 
 - [ ] **Step 5: Kiểm chứng vòng lặp frontend**
 
-```bash
-cd /Volumes/BKM/git/photoprism
-ls -l --time-style=+%H:%M:%S assets/static/build/*.js | head -2
-```
+**Không** dùng mtime của file build để kiểm chứng: webpack mặc định `output.compareBeforeEmit: true`, nội dung không đổi thì nó **không ghi lại file**, mtime giữ nguyên dù build đã chạy. `ls --time-style` cũng không tồn tại trên macOS.
 
-Ghi lại timestamp. Rồi ở terminal khác:
-
-```bash
-cd /Volumes/BKM/photoprism
-./dev.sh build-js
-```
-
-Sau khi xong:
+Cách đúng — sửa thật một chuỗi, build, grep trong bundle, rồi revert:
 
 ```bash
 cd /Volumes/BKM/git/photoprism
-ls -l --time-style=+%H:%M:%S assets/static/build/*.js | head -2
+# đổi tạm chuỗi log trong nhánh debug (không ảnh hưởng người dùng)
+sed -i '' 's/console.log("config: new settings"/console.log("config: new settings CUSTOMBUILDTEST"/' frontend/src/common/config.js
+grep -n 'CUSTOMBUILDTEST' frontend/src/common/config.js
+
+cd /Volumes/BKM/photoprism && ./dev.sh build-js
+grep -l 'CUSTOMBUILDTEST' /Volumes/BKM/git/photoprism/assets/static/build/*.js | xargs -n1 basename
 ```
 
-Kỳ vọng: timestamp **mới hơn** timestamp trước đó → vòng lặp frontend hoạt động.
-(`./dev.sh watch-js` là bản chạy liên tục của cùng cơ chế này; không cần test riêng.)
+Kỳ vọng: ít nhất `app.<hash>.js` và `share.<hash>.js` chứa marker, và **tên file có hash mới** so với trước (content hash đổi theo nội dung).
+
+Revert và build lại:
+
+```bash
+cd /Volumes/BKM/git/photoprism
+sed -i '' 's/console.log("config: new settings CUSTOMBUILDTEST"/console.log("config: new settings"/' frontend/src/common/config.js
+cd /Volumes/BKM/photoprism && ./dev.sh build-js
+grep -l 'CUSTOMBUILDTEST' /Volumes/BKM/git/photoprism/assets/static/build/*.js | wc -l
+```
+
+Kỳ vọng: `0` — không còn marker. `git status --short` chỉ còn `internal/commands/start.go`.
+
+(`./dev.sh watch-js` là bản chạy liên tục của cùng cơ chế; không cần test riêng.)
 
 - [ ] **Step 6: Kiểm chứng app vẫn phục vụ bình thường sau khi sửa code**
 

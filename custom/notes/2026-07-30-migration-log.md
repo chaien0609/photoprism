@@ -24,6 +24,22 @@
 Dump: `/Volumes/BKM/photoprism/backup-pre-source-migration.sql.gz` (526 MB, gzip OK, 39 `CREATE TABLE`)
 Albums YAML: `/Volumes/BKM/photoprism/storage/backup/albums/` (325 file)
 
+## Số liệu vòng lặp dev (đo thực tế)
+
+| Việc | Thời gian thật | Ước tính trong spec |
+| --- | --- | --- |
+| `make build-go` | **36 giây** | 1–3 phút |
+| `make build-js` | **31–49 giây** | vài giây (sai — đó là watch-js incremental) |
+| `make dep` lần đầu | ~2 phút | 15–25 phút |
+| pull `develop:resolute` | 4m53s | 5–15 phút |
+
+## Việc còn tồn (quyết định để sau)
+
+- **58 file `file_missing=1`** đánh từ 11/07 bởi setup cũ, gồm 23 file preview video/HEIC mà preview giờ đã render được. Chúng bị ẩn khỏi kết quả tìm kiếm. Cách xử lý đúng: `photoprism index` (app tự đọc lại disk); cách nhanh: UPDATE có điều kiện kiểm file tồn tại trên disk. **Chưa làm.**
+- **`hub.yml` bị app ghi lại lúc 17:13 ngày 30/07** (trước đó mtime 29/07). Key/Secret/Session/Serial đều còn. Trường `Status` rỗng — **không xác minh được** vốn đã rỗng hay từng có trạng thái membership, vì không có bản cũ để so. Binary cũ báo edition `Plus`, bản build từ source là `ce`. Cần kiểm tab Places/maps trong UI để biết có ảnh hưởng thật không.
+- **`gh` active account**: push lên fork cần active account là `chaien0609`. Trong phiên làm việc này active account là `core-cuong` nên push bị 403. Xử lý: `gh auth switch --user chaien0609` → push → switch lại.
+- Rác `/Volumes/BKM/memories/.photoprism/` (40 KB, 10 file scaffolding, 0 file ảnh) **đã xoá**. Config thật trong `/Volumes/BKM/photoprism/storage/config/` không bị đụng (`settings.yml` mtime 01/02, `serial` mtime 30/01).
+
 ## Tiến trình
 
 - [x] Task 1 — baseline + backup
@@ -51,3 +67,12 @@ Albums YAML: `/Volumes/BKM/photoprism/storage/backup/albums/` (325 file)
   Kiểm chứng sau fix: mọi đường dẫn khớp (`storage-path /photoprism/storage`, `sidecar-path /photoprism/storage/sidecar`, `thumb-cache-path /photoprism/storage/cache/thumbnails`, `backup-path /photoprism/storage/backup`), và **23/23** file trước đó lỗi giờ trả `image/jpeg` thật, 0 file trả SVG. Log app 0 error.
 
   Sai sót trong quá trình debug, ghi lại để không lặp: tôi dùng `docker compose run <service> photoprism config` để lấy config tham chiếu từ image prod, nhưng entrypoint `/init` xoá sạch biến `PHOTOPRISM_*` trước khi CMD chạy → kết quả là code default, không phải cấu hình thật. Cách đúng để đọc ENV của image: `docker run --rm --entrypoint /bin/bash <image> -c 'echo $PHOTOPRISM_STORAGE_PATH'`.
+- [x] Task 7 — vòng lặp customize xác nhận hoạt động.
+
+  **Go**: thêm `log.Infof("custom: running build from local source (%s)", conf.Version())` vào `internal/commands/start.go:92`, trước anchor `// Initialize the index database.`. Sau `make build-go` (36 giây) và restart, log in ra `custom: running build from local source (260730-c10a98cd0-Linux-ARM64-DEVELOP)`. Giữ lại làm dấu hiệu nhận biết đang chạy bản build riêng.
+
+  **Frontend**: sửa tạm một chuỗi trong `frontend/src/common/config.js`, build, marker xuất hiện trong `app.38906a59abc6d5835960.js` + `share.*.js` với **hash filename mới**. Đã revert và build lại, marker về 0.
+
+  Hai phép thử sai của tôi, phát hiện trong lúc chạy:
+  1. **mtime không dùng được để kiểm chứng build frontend** — webpack mặc định `output.compareBeforeEmit: true`, nội dung không đổi thì không ghi lại file nên mtime giữ nguyên dù build đã chạy thành công. (Và `ls --time-style` không có trên macOS.)
+  2. **Dừng app phải làm bên trong container** — giết client `docker compose exec` ở host không dừng tiến trình trong container; nó vẫn giữ cổng 2342, khiến `run` lần sau lỗi `bind: address already in use` rồi shutdown, trong khi cổng vẫn do binary **cũ** phục vụ. Đã thêm `./dev.sh stop-app` và `./dev.sh restart` để xử lý. Cũng lưu ý: `ps aux | grep -c "[p]hotoprism start"` cho kết quả sai (đếm cả command line của chính nó).

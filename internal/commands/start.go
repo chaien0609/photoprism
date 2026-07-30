@@ -89,6 +89,8 @@ func startAction(ctx *cli.Context) error {
 	// Pass this context down the chain.
 	cctx, cancel := context.WithCancel(context.Background())
 
+	log.Infof("custom: running build from local source (%s)", conf.Version())
+
 	// Initialize the index database.
 	conf.InitDb()
 
