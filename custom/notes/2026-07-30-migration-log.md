@@ -24,6 +24,14 @@
 Dump: `/Volumes/BKM/photoprism/backup-pre-source-migration.sql.gz` (526 MB, gzip OK, 39 `CREATE TABLE`)
 Albums YAML: `/Volumes/BKM/photoprism/storage/backup/albums/` (325 file)
 
+- [x] Task 8 — bake `photoprism/photoprism:local` (**~15 phút**, không phải 25–50 như ước tính), 3.27 GB, đúng bằng size image chính thức. 3 tag: `local`, `ce-resolute`, `260730-ce-resolute`. Version `260730-576b598e2-Linux-ARM64` (không có `-DEVELOP` vì target `install` build bằng `scripts/build.sh prod`), edition `ce`.
+
+  Sau khi switch sang chế độ image: dữ liệu 78715 / 134383 / 325, migrations 43 — khớp. Log có `custom: running build from local source (260730-576b598e2-Linux-ARM64)` → thay đổi Go ở Task 7 đã vào image. 0 fatal/panic. Đường dẫn đúng: `storage-path /photoprism/storage`, `sidecar-path /photoprism/storage/sidecar`, `thumb-cache-path /photoprism/storage/cache/thumbnails`.
+
+  **ENV image drift giữa 260601 và 260728** (thay đổi upstream, không phải lỗi setup): image `:latest` (260601) đặt `THUMB_SIZE=1920`, `THUMB_SIZE_UNCACHED=7680`, `THUMB_UNCACHED=true`, `JPEG_SIZE=7680`, `PNG_SIZE=7680` trong ENV; bản resolute (260728) đã **bỏ** các biến này và đổi `THUMB_UNCACHED` sang `false`. Đã ghim tường minh 5 biến đó vào `compose.yaml` để hành vi giữ nguyên như setup cũ và để hai chế độ giống nhau.
+
+  Sai sót của tôi khi kiểm chứng, ghi lại để không lặp: tôi curl thumbnail và chỉ in `content_type`, thấy `image/svg+xml` nên kết luận "chế độ image bị lỗi thumbnail". Thực tế là **HTTP 403** — preview token `a48sm2dk` đã hết hiệu lực (session biến mất khỏi `auth_sessions`), và API trả 403 kèm SVG. Ảnh thường cũng 403. Bài học: luôn in `%{http_code}` cùng `%{content_type}`.
+
 ## Số liệu vòng lặp dev (đo thực tế)
 
 | Việc | Thời gian thật | Ước tính trong spec |

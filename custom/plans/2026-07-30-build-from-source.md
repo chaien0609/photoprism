@@ -744,10 +744,21 @@ TOK=$(docker exec photoprism-mariadb-1 mariadb -u root -pinsecure -N -B -e \
   "SELECT preview_token FROM photoprism.auth_sessions WHERE preview_token<>'' ORDER BY created_at DESC LIMIT 1;")
 H=$(docker exec photoprism-mariadb-1 mariadb -u root -pinsecure -N -B -e \
   "SELECT file_hash FROM photoprism.files WHERE file_name LIKE '%.mov.jpg' LIMIT 1;")
-curl -s -o /dev/null -w 'content_type: %{content_type}\n' "http://localhost:8098/api/v1/t/$H/$TOK/tile_500"
+curl -s -o /dev/null -w 'HTTP %{http_code} content_type: %{content_type}\n' "http://localhost:8098/api/v1/t/$H/$TOK/tile_500"
 ```
 
-Kỳ vọng: `image/jpeg`. Nếu ra `image/svg+xml` → đường dẫn sidecar sai, kiểm lại `PHOTOPRISM_STORAGE_PATH`.
+**Phải in cả `http_code`, không chỉ `content_type`.** Preview token hết hiệu lực thì API trả **403 kèm SVG** — nhìn `content_type: image/svg+xml` một mình sẽ tưởng là lỗi thumbnail. Token trong `auth_sessions` biến mất khi session của người dùng hết hạn; lấy token mới bằng cách đăng nhập lại trên UI rồi query lại.
+
+Kỳ vọng: `HTTP 200` **và** `image/jpeg`.
+- `HTTP 403` → token hết hiệu lực, không liên quan thumbnail. Đăng nhập lại rồi lấy token mới.
+- `HTTP 200` + `image/svg+xml` → đường dẫn sidecar sai thật, kiểm lại `PHOTOPRISM_STORAGE_PATH`.
+
+Kiểm chứng không cần token (dùng khi không có session): xác nhận container thấy đúng file cache và sidecar:
+
+```bash
+docker exec photoprism-photoprism-1 photoprism config | grep -E 'storage-path|sidecar-path|thumb-cache-path'
+docker exec photoprism-photoprism-1 ls -l /photoprism/storage/sidecar/2026/<tên file>.mov.jpg
+```
 
 Chọn file `.mov.jpg` vì preview video nằm trong sidecar — đúng chỗ vỡ khi storage path sai. Ảnh JPEG thường nằm trong originals nên vẫn render dù cấu hình sai, không phát hiện được gì.
 
