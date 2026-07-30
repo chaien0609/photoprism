@@ -23,8 +23,8 @@ repo `/Volumes/BKM/git/photoprism`, sao cho:
 | Repo trước khi bắt đầu | branch `develop`, **1258 commit sau** `origin/develop` |
 | Tag release mới nhất | `260728-bbde8f452` (28/07/2026) |
 | Ảnh gốc | `/Volumes/BKM/memories` → `/photoprism/originals` |
-| Storage | `./storage` → `/photoprism/storage` |
-| DB | named volume `database`, MariaDB 11, db `photoprism` |
+| Storage | `./storage` → `/photoprism/storage`, **134 GB** |
+| DB | named volume `database` → tên thật `photoprism_database`, MariaDB 11, db `photoprism` |
 | Host | macOS arm64, Docker 29.6.2, 10 CPU, 8 GB RAM cho Docker |
 | Disk nội bộ trống | ~20 GB (Docker đã dùng ~19 GB) |
 | Disk BKM trống | ~30 GB / 932 GB |
@@ -81,6 +81,26 @@ upstream  → github.com/photoprism/photoprism   (chỉ fetch)
 - Mọi file thuộc fork đặt trong `custom/` ở gốc repo. Thư mục này không tồn tại trên
   upstream nên không bao giờ conflict khi rebase. (Không dùng `docs/` — upstream đã
   `.gitignore` đường dẫn đó.)
+
+### Đã cân nhắc: gộp tất cả vào một thư mục?
+
+Đã xét phương án bỏ `/Volumes/BKM/photoprism`, đưa hết vào repo. **Quyết định: giữ hai
+thư mục.** Dữ kiện đã kiểm chứng khi cân nhắc:
+
+- `storage/` nặng **134 GB**, disk BKM chỉ còn ~30 GB trống → không copy được. (Rename
+  trong cùng volume APFS thì tức thời, nên đây không phải yếu tố quyết định.)
+- `/storage/` đã có trong `.gitignore` của repo → để trong repo cũng không bẩn
+  `git status`.
+- `make clean` chỉ xoá `./build`, `./assets/static/build`, `node_modules`, binary —
+  **không** đụng `storage/` ở gốc repo. Không có nguy cơ mất data từ make targets.
+- Nếu chuyển compose vào `custom/`, project name mặc định thành `custom` → volume thành
+  `custom_database` ≠ `photoprism_database` hiện có → DB trông như trống. Phải khai
+  `name: photoprism` tường minh. (Chỉ áp dụng nếu gộp; hiện không gộp.)
+
+Lý do giữ hai thư mục: deployment độc lập hoàn toàn với git — checkout/rebase không bao
+giờ làm mất file compose; password không đi vào git nên fork public cũng an toàn;
+`compose.yaml` dev env của upstream trỏ `PHOTOPRISM_STORAGE_PATH` vào `storage/` ở gốc
+repo, tách ra thì không bao giờ nhầm với storage thật.
 
 ## Kiến trúc file
 
