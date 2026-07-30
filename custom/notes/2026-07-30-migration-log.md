@@ -36,6 +36,16 @@ Albums YAML: `/Volumes/BKM/photoprism/storage/backup/albums/` (325 file)
 
   Kiểm chứng cuối: image `photoprism/photoprism:local`, API HTTP 200, version `260730-576b598e2-Linux-ARM64`, edition `ce`, data 78715 / 134383 / 325 khớp mốc, backup 526 MB còn nguyên, disk `/` còn 25 Gi.
 
+## Sau khi hoàn tất plan
+
+**Đổi `PHOTOPRISM_INIT` từ `"https tensorflow"` sang `"https"`** (theo yêu cầu người dùng).
+
+Xác minh trước khi đổi: cả `photoprism/photoprism:latest` và `:local` đều đã ship TensorFlow 2.18.0 trong `/opt/photoprism/lib/`, và binary có `RUNPATH: $ORIGIN/../lib` nên tìm được. Bước init `tensorflow` chỉ tải lại ~200 MB vào `/usr` mỗi lần start — thừa từ đầu. (Models nằm trong image vì build stage tự chạy `make dep` rồi `make install` rsync `./assets/` vào `/opt/photoprism/assets`, dù `.dockerignore` loại `/assets/models/` khỏi build context.)
+
+Kết quả: khởi động từ ~7 phút xuống **16 giây**. `photoprism vision ls` báo 4 model, 3 cái engine `tensorflow` (nasnet/labels, nsfw, facenet/face) đều Enabled → TF hoạt động thật, không chỉ "không báo lỗi". Data vẫn 78715 / 134383 / 325, marker `custom: running build` còn, 0 fatal/panic.
+
+**Xoá dump thủ công** `backup-pre-source-migration.sql.gz` (526 MB) theo yêu cầu người dùng. Đường lùi vẫn còn nhờ backup tự động của PhotoPrism: `storage/backup/mysql/2026-07-29.sql` (1.4 GB, tạo 30/07 05:30 — **trước** migration), cùng `2026-07-21.sql` và `2026-07-22.sql`. Tổng 4.2 GB, SQL **không nén**, trên ổ BKM còn ~33 GB. 325 album YAML vẫn nguyên trong `storage/backup/albums/{folder,moment,month,state}/`.
+
 ## Số liệu vòng lặp dev (đo thực tế)
 
 | Việc | Thời gian thật | Ước tính trong spec |
