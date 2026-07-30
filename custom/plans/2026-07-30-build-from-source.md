@@ -373,26 +373,30 @@ volumes:
 ```bash
 cd /Volumes/BKM/photoprism
 docker compose -f compose.yaml -f compose.dev.yaml config --quiet && echo "DEV COMPOSE OK"
-docker compose -f compose.yaml -f compose.dev.yaml config | grep -E 'image:|working_dir:|/go/src|photoprism_database|8098'
-docker compose -f compose.yaml -f compose.dev.yaml config | grep -cE 'command:'
+docker compose -f compose.yaml -f compose.dev.yaml config --format json | python3 -c "
+import json,sys
+c=json.load(sys.stdin)
+print('project name:', c.get('name'))
+for svc in ('photoprism','mariadb'):
+    s=c['services'][svc]
+    print(f'--- {svc}')
+    print('  image   :', s.get('image'))
+    print('  command :', s.get('command'))
+    for v in s.get('volumes',[]):
+        print('  vol     :', v.get('source'),'->',v.get('target'), v.get('type'))
+print('--- volumes top-level:', {k:(v or {}).get('name') for k,v in (c.get('volumes') or {}).items()})
+"
 ```
+
+Đọc field đã merge thay vì `grep` text: `grep -c 'command:'` sẽ đếm cả `command` của mariadb (nó có 8 flag tuning) nên không phân biệt được service nào.
 
 Kỳ vọng:
 - `DEV COMPOSE OK`
-- image của service photoprism là `photoprism/develop:resolute`
-- có mount `/Volumes/BKM/git/photoprism:/go/src/github.com/photoprism/photoprism`
-- **vẫn còn** mount originals `/Volumes/BKM/memories` và `./storage`
-- port `8098:2342` còn nguyên
-- số dòng `command:` là `0` (không được set command cho service photoprism)
-
-- [ ] **Step 5: Kiểm chứng project name không đổi**
-
-```bash
-cd /Volumes/BKM/photoprism
-docker compose -f compose.yaml -f compose.dev.yaml config --format json | grep -o '"name":"[^"]*"' | head -1
-```
-
-Kỳ vọng: `"name":"photoprism"`. Nếu ra tên khác → volume DB sẽ thành `<tên>_database` và DB trông như trống; phải thêm `name: photoprism` ở cấp trên cùng của compose.dev.yaml rồi kiểm lại.
+- `project name: photoprism` — **bắt buộc**. Nếu ra tên khác → volume DB thành `<tên>_database` và DB trông như trống; phải thêm `name: photoprism` ở cấp trên cùng của compose.dev.yaml rồi kiểm lại.
+- photoprism: image `photoprism/develop:resolute`, **`command : None`**
+- photoprism có đủ 4 mount: `/Volumes/BKM/memories` → `/photoprism/originals`, `/Volumes/BKM/photoprism/storage` → `/photoprism/storage`, `/Volumes/BKM/git/photoprism` → `/go/src/github.com/photoprism/photoprism`, và `gocache` → `/go/cache`
+- `volumes top-level` có `'database': 'photoprism_database'` — đúng volume DB đang dùng
+- mariadb vẫn `image: mariadb:11` và giữ nguyên `command` 8 flag tuning
 
 - [ ] **Step 6: Tạo dev.sh**
 

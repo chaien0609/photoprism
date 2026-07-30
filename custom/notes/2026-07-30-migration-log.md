@@ -29,3 +29,4 @@ Albums YAML: `/Volumes/BKM/photoprism/storage/backup/albums/` (325 file)
 - [x] Task 1 — baseline + backup
 - [x] Task 2 — fork `chaien0609/photoprism` (PUBLIC), `origin` → fork, `upstream` → photoprism/photoprism, branch `custom` đã push (SHA khớp)
 - [x] Task 3 — pull `photoprism/develop:resolute` (arm64, **11.1 GB**, mất 4m53s), tạo volume `photoprism-gocache`. Toolchain: Go 1.26.5 / Node 24.18.0 / npm 12.0.1. Disk `/` còn 17 Gi sau khi pull.
+- [x] Task 4 — tạo `compose.dev.yaml` + `dev.sh`, sửa `PHOTOPRISM_SITE_URL` từ port 2342 → 8098. Verify merge: project name `photoprism`, volume DB `photoprism_database` giữ nguyên, photoprism `command: None`, đủ 4 mount. Instance cũ vẫn chạy `photoprism/photoprism:latest`, API 200 — không downtime.
