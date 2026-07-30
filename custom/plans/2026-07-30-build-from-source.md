@@ -156,10 +156,12 @@ Kỳ vọng: `origin` trỏ `https://github.com/photoprism/photoprism.git`, bran
 - [ ] **Step 2: Tạo fork trên GitHub**
 
 ```bash
-gh repo fork photoprism/photoprism --clone=false --remote=false
+gh repo fork photoprism/photoprism --clone=false
 ```
 
-Kỳ vọng: thông báo tạo fork `chaien0609/photoprism` (hoặc "already exists" nếu đã có — cũng OK).
+Kỳ vọng: in ra URL `https://github.com/chaien0609/photoprism` (hoặc "already exists" nếu đã có — cũng OK).
+
+Không thêm `--remote=false`: gh 2.96 báo lỗi `the --remote flag is unsupported when a repository argument is provided`. Khi truyền tên repo, gh không tự thêm remote nên không cần flag đó.
 
 - [ ] **Step 3: Kiểm chứng fork tồn tại**
 

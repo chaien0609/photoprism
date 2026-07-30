@@ -27,3 +27,4 @@ Albums YAML: `/Volumes/BKM/photoprism/storage/backup/albums/` (325 file)
 ## Tiến trình
 
 - [x] Task 1 — baseline + backup
+- [x] Task 2 — fork `chaien0609/photoprism` (PUBLIC), `origin` → fork, `upstream` → photoprism/photoprism, branch `custom` đã push (SHA khớp)
