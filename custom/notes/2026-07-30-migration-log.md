@@ -32,6 +32,10 @@ Albums YAML: `/Volumes/BKM/photoprism/storage/backup/albums/` (325 file)
 
   Sai sót của tôi khi kiểm chứng, ghi lại để không lặp: tôi curl thumbnail và chỉ in `content_type`, thấy `image/svg+xml` nên kết luận "chế độ image bị lỗi thumbnail". Thực tế là **HTTP 403** — preview token `a48sm2dk` đã hết hiệu lực (session biến mất khỏi `auth_sessions`), và API trả 403 kèm SVG. Ảnh thường cũng 403. Bài học: luôn in `%{http_code}` cùng `%{content_type}`.
 
+- [x] Task 9 — viết `custom/notes/upstream-update-runbook.md` và viết lại `/Volumes/BKM/photoprism/CLAUDE.md`. Kiểm chứng: cả 14 subcommand mà CLAUDE.md nhắc đều tồn tại thật trong `dev.sh`.
+
+  Kiểm chứng cuối: image `photoprism/photoprism:local`, API HTTP 200, version `260730-576b598e2-Linux-ARM64`, edition `ce`, data 78715 / 134383 / 325 khớp mốc, backup 526 MB còn nguyên, disk `/` còn 25 Gi.
+
 ## Số liệu vòng lặp dev (đo thực tế)
 
 | Việc | Thời gian thật | Ước tính trong spec |
