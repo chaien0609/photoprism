@@ -541,11 +541,13 @@ docker run --rm \
 cd /Volumes/BKM/git/photoprism
 ls assets/models/
 du -sh assets/models/
-ls node_modules >/dev/null && echo "node_modules OK"
-ls frontend/node_modules >/dev/null && echo "frontend/node_modules OK"
+ls -d node_modules >/dev/null 2>&1 && echo "node_modules OK"
+python3 -c "import json; print('workspaces:', json.load(open('package.json')).get('workspaces'))"
 ```
 
-Kỳ vọng: `assets/models/` có các thư mục model (facenet, nasnet, nsfw, scrfd hoặc tên tương đương), tổng dung lượng vài trăm MB, và cả hai dòng `OK`.
+Kỳ vọng: `assets/models/` có đúng 4 thư mục `facenet nasnet nsfw scrfd`, tổng khoảng 229 MB, và `node_modules OK`.
+
+**Không** kỳ vọng `frontend/node_modules` tồn tại: `package.json` khai `workspaces: ['frontend']` nên npm ci gom toàn bộ dependency về `node_modules/` ở root. Bằng chứng frontend deps đủ dùng là `make build-js` chạy được ở Step 4, không phải sự tồn tại của thư mục đó.
 
 - [ ] **Step 4: Build frontend và Go binary**
 
